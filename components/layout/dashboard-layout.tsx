@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -16,9 +18,32 @@ const navItems = [
   { name: "Profile", href: "/profile", icon: User },
 ]
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+interface DashboardLayoutProps {
+  children: React.ReactNode
+  user?: {
+    name?: string
+    role?: string
+    email?: string
+  }
+}
+
+export function DashboardLayout({ children, user }: DashboardLayoutProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false)
+
+  const handleLogout = async () => {
+    await signOut({ redirect: false })
+    router.push("/login")
+  }
+
+  const userName = user?.name || "Staff Member"
+  const userRole = user?.role || "Employee"
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -63,7 +88,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="mt-auto border-t pt-4">
-            <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+              onClick={handleLogout}
+            >
               <LogOut className="h-4 w-4" />
               Logout
             </Button>
@@ -115,12 +144,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-3">
             <div className="hidden text-right lg:block">
-              <p className="text-sm font-medium">Rajesh Deshmukh</p>
-              <p className="text-[10px] text-muted-foreground">Senior Professor</p>
+              <p className="text-sm font-medium">{userName}</p>
+              <p className="text-[10px] text-muted-foreground">{userRole}</p>
             </div>
             <Avatar className="h-8 w-8 border-2 border-primary/10">
-              <AvatarImage src="/diverse-person-portrait.png" />
-              <AvatarFallback>RD</AvatarFallback>
+              <AvatarImage src="/user.png" alt={userName} />
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </div>
         </header>

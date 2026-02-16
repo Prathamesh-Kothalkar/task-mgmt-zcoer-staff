@@ -13,66 +13,115 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 
-const tasks = [
-  {
-    id: 1,
-    title: "Finalize Departmental Budget",
-    assignedBy: "Dr. S. Patil",
-    dueDate: "Oct 20, 2026",
-    priority: "High",
-    status: "Pending",
-    description: "Need to consolidate all lab requirements and guest lecture costs for the next semester.",
-  },
-  {
-    id: 2,
-    title: "Mentor Meeting - Batch B4",
-    assignedBy: "Academic Coordinator",
-    dueDate: "Oct 18, 2026",
-    priority: "Medium",
-    status: "In Progress",
-    description: "Monthly progress review for the assigned mentee group. Focus on attendance and mid-term marks.",
-  },
-  {
-    id: 3,
-    title: "Upload Attendance on Portal",
-    assignedBy: "Principal Office",
-    dueDate: "Oct 15, 2026",
-    priority: "High",
-    status: "Completed",
-    description: "Daily attendance upload for morning lectures (BE Computer Division A).",
-  },
-  {
-    id: 4,
-    title: "Research Paper Review",
-    assignedBy: "R&D Cell",
-    dueDate: "Oct 25, 2026",
-    priority: "Low",
-    status: "Pending",
-    description: "Review the submitted draft for the internal conference.",
-  },
-  {
-    id: 5,
-    title: "Lab Equipment Audit",
-    assignedBy: "Admin Dept",
-    dueDate: "Oct 14, 2026",
-    priority: "Medium",
-    status: "In Progress",
-    description: "Verify physical inventory against the department register.",
-  },
-]
-
 function TasksContent() {
-  const [selectedTask, setSelectedTask] = React.useState<(typeof tasks)[0] | null>(null)
+  const [selectedTask, setSelectedTask] = React.useState<any | null>(null)
   const [isUpdating, setIsUpdating] = React.useState(false)
+  const [tasks, setTasks] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+  const [activeTab, setActiveTab] = React.useState("all")
+  const [searchQuery, setSearchQuery] = React.useState("")
 
-  const handleStatusUpdate = (status: string) => {
-    setIsUpdating(true)
-    setTimeout(() => {
-      setIsUpdating(false)
-      if (selectedTask) {
-        setSelectedTask({ ...selectedTask, status })
+  React.useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const res = await fetch("/api/tasks")
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Failed" }))
+          throw new Error(err?.error || `HTTP ${res.status}`)
+        }
+        const data = await res.json()
+        if (mounted) {
+          setTasks(Array.isArray(data.tasks) ? data.tasks : [])
+        }
+      } catch (err: any) {
+        console.error("Failed to load tasks:", err)
+        if (mounted) setError(err?.message || "Failed to load tasks")
+      } finally {
+        if (mounted) setLoading(false)
       }
-    }, 1000)
+    }
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const handleStatusUpdate = async (status: string) => {
+    if (!selectedTask) return
+    setIsUpdating(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/tasks/${selectedTask.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        throw new Error(err?.error || `HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      if (data?.success && data.task) {
+        setSelectedTask(data.task)
+        setTasks((prev) => prev.map((t) => (t.id === data.task.id ? data.task : t)))
+      } else {
+        throw new Error(data?.error || "Failed to update task")
+      }
+    } catch (err: any) {
+      console.error("Failed to update task status:", err)
+      setError(err?.message || "Failed to update task")
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  // Filter tasks based on tab and search
+  const filteredTasks = React.useMemo(() => {
+    let filtered = tasks
+
+    // Filter by status
+    if (activeTab === "pending") {
+      filtered = filtered.filter((t) => t.status === "PENDING" || t.status === "Pending")
+    } else if (activeTab === "active") {
+      filtered = filtered.filter((t) => t.status === "IN_PROGRESS" || t.status === "In Progress")
+    } else if (activeTab === "done") {
+      filtered = filtered.filter((t) => t.status === "COMPLETED" || t.status === "Completed")
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(
+        (t) =>
+          t.title.toLowerCase().includes(query) ||
+          t.description.toLowerCase().includes(query)
+      )
+    }
+
+    return filtered
+  }, [tasks, activeTab, searchQuery])
+
+  if (loading) {
+    return (
+      <div className="h-[40vh] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-[40vh] flex items-center justify-center text-sm text-destructive">
+        {error}
+      </div>
+    )
   }
 
   return (
@@ -80,7 +129,12 @@ function TasksContent() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search tasks..." className="pl-9 bg-white" />
+          <Input
+            placeholder="Search tasks..."
+            className="pl-9 bg-white"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
         <Button variant="outline" size="sm" className="gap-2 h-10 px-4 bg-transparent">
           <Filter className="h-4 w-4" />
@@ -88,86 +142,92 @@ function TasksContent() {
         </Button>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-white border w-full justify-start overflow-x-auto h-auto p-1 mb-4">
           <TabsTrigger value="all" className="text-xs uppercase font-bold tracking-tight px-6 py-2">
-            All Tasks
+            All Tasks ({tasks.length})
           </TabsTrigger>
           <TabsTrigger value="pending" className="text-xs uppercase font-bold tracking-tight px-6 py-2">
-            Pending
+            Pending ({tasks.filter((t) => t.status === "PENDING" || t.status === "Pending").length})
           </TabsTrigger>
           <TabsTrigger value="active" className="text-xs uppercase font-bold tracking-tight px-6 py-2">
-            In Progress
+            In Progress ({tasks.filter((t) => t.status === "IN_PROGRESS" || t.status === "In Progress").length})
           </TabsTrigger>
           <TabsTrigger value="done" className="text-xs uppercase font-bold tracking-tight px-6 py-2">
-            Completed
+            Completed ({tasks.filter((t) => t.status === "COMPLETED" || t.status === "Completed").length})
           </TabsTrigger>
         </TabsList>
 
         <div className="space-y-3">
-          {tasks.map((task) => (
-            <Card
-              key={task.id}
-              className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
-              onClick={() => setSelectedTask(task)}
-            >
-              <CardContent className="p-0">
-                <div className="flex items-center">
-                  <div
-                    className={cn(
-                      "w-1.5 self-stretch transition-colors",
-                      task.status === "Completed"
-                        ? "bg-green-500"
-                        : task.status === "In Progress"
-                          ? "bg-blue-500"
-                          : "bg-muted",
-                    )}
-                  />
-                  <div className="flex flex-1 items-center justify-between p-4">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        {task.status === "Completed" ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        ) : task.status === "In Progress" ? (
-                          <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
-                        ) : (
-                          <Circle className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <h3 className="font-bold text-sm tracking-tight group-hover:text-primary transition-colors">
-                          {task.title}
-                        </h3>
+          {filteredTasks.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">No tasks found</p>
+            </div>
+          ) : (
+            filteredTasks.map((task) => (
+              <Card
+                key={task.id}
+                className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
+                onClick={() => setSelectedTask(task)}
+              >
+                <CardContent className="p-0">
+                  <div className="flex items-center">
+                    <div
+                      className={cn(
+                        "w-1.5 self-stretch transition-colors",
+                        task.status === "COMPLETED" || task.status === "Completed"
+                          ? "bg-green-500"
+                          : task.status === "IN_PROGRESS" || task.status === "In Progress"
+                            ? "bg-blue-500"
+                            : "bg-muted",
+                      )}
+                    />
+                    <div className="flex flex-1 items-center justify-between p-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          {task.status === "COMPLETED" || task.status === "Completed" ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : task.status === "IN_PROGRESS" || task.status === "In Progress" ? (
+                            <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                          ) : (
+                            <Circle className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <h3 className="font-bold text-sm tracking-tight group-hover:text-primary transition-colors">
+                            {task.title}
+                          </h3>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground ml-6">
+                          <span className="flex items-center gap-1">
+                            <UserIcon className="h-3 w-3" /> {task.assignedBy}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Due {new Date(task.dueDate).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground ml-6">
-                        <span className="flex items-center gap-1">
-                          <UserIcon className="h-3 w-3" /> {task.assignedBy}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> Due {task.dueDate}
-                        </span>
+                      <div className="flex items-center gap-3">
+                        <div className="hidden text-right sm:block">
+                          <Badge
+                            variant={
+                              task.priority === "HIGH" || task.priority === "High"
+                                ? "destructive"
+                                : task.priority === "MEDIUM" || task.priority === "Medium"
+                                  ? "default"
+                                  : "secondary"
+                            }
+                            className="text-[9px] h-4 px-1.5 uppercase font-bold"
+                          >
+                            {task.priority}
+                          </Badge>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="hidden text-right sm:block">
-                        <Badge
-                          variant={
-                            task.priority === "High"
-                              ? "destructive"
-                              : task.priority === "Medium"
-                                ? "default"
-                                : "secondary"
-                          }
-                          className="text-[9px] h-4 px-1.5 uppercase font-bold"
-                        >
-                          {task.priority}
-                        </Badge>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </Tabs>
 
@@ -181,7 +241,7 @@ function TasksContent() {
                   <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none px-3 py-1">
                     #{selectedTask.id}
                   </Badge>
-                  <Badge variant={selectedTask.priority === "High" ? "destructive" : "secondary"} className="px-3 py-1">
+                  <Badge variant={selectedTask.priority === "HIGH" || selectedTask.priority === "High" ? "destructive" : "secondary"} className="px-3 py-1">
                     {selectedTask.priority} Priority
                   </Badge>
                 </div>
@@ -196,7 +256,7 @@ function TasksContent() {
                     <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary uppercase">
                       {selectedTask.assignedBy
                         .split(" ")
-                        .map((n) => n[0])
+                        .map((n: string) => n[0])
                         .join("")}
                     </div>
                     <p className="text-sm font-semibold">{selectedTask.assignedBy}</p>
@@ -206,7 +266,7 @@ function TasksContent() {
                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Deadline</p>
                   <p className="text-sm font-semibold pt-1 flex items-center justify-end gap-1.5">
                     <Clock className="h-3.5 w-3.5 text-primary" />
-                    {selectedTask.dueDate}
+                    {new Date(selectedTask.dueDate).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -217,15 +277,15 @@ function TasksContent() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold text-primary">{selectedTask.status}</span>
                     <span className="text-muted-foreground">
-                      {selectedTask.status === "Completed"
+                      {selectedTask.status === "COMPLETED" || selectedTask.status === "Completed"
                         ? "100%"
-                        : selectedTask.status === "In Progress"
+                        : selectedTask.status === "IN_PROGRESS" || selectedTask.status === "In Progress"
                           ? "50%"
                           : "0%"}
                     </span>
                   </div>
                   <Progress
-                    value={selectedTask.status === "Completed" ? 100 : selectedTask.status === "In Progress" ? 50 : 0}
+                    value={selectedTask.status === "COMPLETED" || selectedTask.status === "Completed" ? 100 : selectedTask.status === "IN_PROGRESS" || selectedTask.status === "In Progress" ? 50 : 0}
                     className="h-2"
                   />
                 </div>
@@ -234,19 +294,20 @@ function TasksContent() {
               <div className="space-y-4 pt-4 border-t">
                 <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Quick Actions</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant={selectedTask.status === "In Progress" ? "default" : "outline"}
-                    className="gap-2 h-12 font-bold uppercase text-xs tracking-tight"
-                    onClick={() => handleStatusUpdate("In Progress")}
-                    disabled={isUpdating || selectedTask.status === "In Progress"}
-                  >
-                    {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Loader2 className="h-4 w-4" />}
-                    Start Task
-                  </Button>
+                <Button
+                  variant={selectedTask.status === "IN_PROGRESS" || selectedTask.status === "In Progress" ? "default" : "outline"}
+                  className="gap-2 h-12 font-bold uppercase text-xs tracking-tight"
+                  onClick={() => handleStatusUpdate("IN_PROGRESS")}
+                  disabled={isUpdating || selectedTask.status === "IN_PROGRESS" || selectedTask.status === "In Progress" || selectedTask.status === "COMPLETED" || selectedTask.status === "Completed"}
+                >
+                  {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Loader2 className="h-4 w-4" />}
+                  Start Task
+                </Button>
+
                   <Button
                     className="bg-green-600 hover:bg-green-700 gap-2 h-12 font-bold uppercase text-xs tracking-tight"
-                    onClick={() => handleStatusUpdate("Completed")}
-                    disabled={isUpdating || selectedTask.status === "Completed"}
+                    onClick={() => handleStatusUpdate("COMPLETED")}
+                    disabled={isUpdating || selectedTask.status === "COMPLETED" || selectedTask.status === "Completed"}
                   >
                     {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     Complete
