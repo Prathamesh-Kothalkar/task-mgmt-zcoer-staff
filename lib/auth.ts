@@ -23,11 +23,11 @@ export const authOptions: NextAuthOptions = {
 
         // use consistent field name empId
         const staff = await Staff.findOne({ empId: credentials.empId })
-        console.log(staff);
+        // console.log(staff);
         if (!staff) {
           throw new Error('Invalid Employee ID or password')
         }
-        console.log('EMployee presnt')
+        // console.log('EMployee presnt')
         //  Account disabled
         if (!staff.isActive) {
           throw new Error('Account is disabled. Contact admin.')

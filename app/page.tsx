@@ -1,5 +1,11 @@
+"use client"
 import { redirect } from "next/navigation"
-
+import { useSession } from "next-auth/react"
 export default function Home() {
-  redirect("/login")
+  const { data: session } = useSession();
+  if (session) {
+    redirect("/dashboard")
+  } else {
+    redirect("/login")
+  }
 }

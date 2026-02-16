@@ -233,7 +233,7 @@ function TasksContent() {
 
       {/* Task Detail Drawer */}
       <Sheet open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto p-3">
           {selectedTask && (
             <div className="space-y-8 pb-8">
               <SheetHeader className="space-y-4">

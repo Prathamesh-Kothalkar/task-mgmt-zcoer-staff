@@ -7,12 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ClipboardList, Clock, Loader2, CheckCircle2, AlertCircle, ArrowUpRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useSession } from "next-auth/react"
 
 export default function DashboardPage() {
   const [staff, setStaff] = useState<any>(null)
   const [stats, setStats] = useState<any>(null)
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const {data: session} = useSession();
+
+  if (!session) {
+    return <>
+    <DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <AlertCircle className="h-12 w-12 text-red-600" />  
+        <p className="ml-4 text-red-600 font-semibold">Unauthorized. Please log in.</p>
+      </div>
+    </DashboardLayout>
+    </>
+  } 
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -68,7 +82,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-primary">
-            Good Morning, {staff?.name} 👋
+            Hello, {session.user?.name} 👋
           </h2>
           <p className="text-sm text-muted-foreground">
             Here's your task summary for today.

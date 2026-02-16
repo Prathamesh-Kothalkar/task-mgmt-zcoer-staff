@@ -3,12 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, CheckSquare, Bell, User, Menu, LogOut } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Bell, User, Menu, LogOut, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { signOut } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 const navItems = [
@@ -32,13 +32,24 @@ export function DashboardLayout({ children, user }: DashboardLayoutProps) {
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false)
 
+  const {data: session} = useSession();
+
+  if(!session) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <AlertCircle className="h-12 w-12 text-red-600" />  
+        <p className="ml-4 text-red-600 font-semibold">Unauthorized. Please log in.</p>
+      </div>
+    )
+  }
+
   const handleLogout = async () => {
     await signOut({ redirect: false })
     router.push("/login")
   }
 
-  const userName = user?.name || "Staff Member"
-  const userRole = user?.role || "Employee"
+  const userName = session.user?.name || "Login to view"
+  const userRole = "Staff"
   const initials = userName
     .split(" ")
     .map((n) => n[0])
